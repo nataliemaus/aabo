@@ -95,6 +95,7 @@ class Optimize(object):
         verbose: if True, print optimization progress updates 
         ppgpr:  if True, use PPGPR instead of SVGP 
         run_id: Optional string run id. Only use is for wandb logging to identify a specific run
+        init_with_guacamol: if true, initialize Guacamol tasks with guacamol data (otherwise initialize them randomly)
     """
     def __init__(
         self,
@@ -132,6 +133,7 @@ class Optimize(object):
         use_botorch_stable_log_softplus=False,
         verbose=True,
         ppgpr=False,
+        init_with_guacamol=True,
         run_id="",
     ):
         if float_dtype_as_int == 32:
@@ -220,17 +222,25 @@ class Optimize(object):
             )
         else: # if task_id is not in dict, assume specific gaucamol objective task
             self.objective = GuacamolObjective(guacamol_task_id=task_id, dtype=self.dtype)
-            # load guacamol data for initialization
-            df = pd.read_csv("../tasks/utils/selfies_vae/train_ys.csv")
-            self.train_y = torch.from_numpy(df[task_id].values).float()
-            self.train_x = torch.load("../tasks/utils/selfies_vae/train_zs.pt")
-            self.train_x = self.train_x[0:num_initialization_points]
-            self.train_y = self.train_y[0:num_initialization_points]
-            self.train_y, top_k_idxs = torch.topk(self.train_y, min(self.update_on_n_pts, len(self.train_y)))
-            self.train_x = self.train_x[top_k_idxs]
-            self.train_y = self.train_y.unsqueeze(-1)
-            self.train_y = self.train_y.to(dtype=self.dtype)
-            self.train_x = self.train_x.to(dtype=self.dtype)
+            if init_with_guacamol:
+                # load guacamol data for initialization 
+                df = pd.read_csv("../tasks/utils/selfies_vae/train_ys.csv")
+                self.train_y = torch.from_numpy(df[task_id].values).float()
+                self.train_x = torch.load("../tasks/utils/selfies_vae/train_zs.pt")
+                self.train_x = self.train_x[0:num_initialization_points]
+                self.train_y = self.train_y[0:num_initialization_points]
+                self.train_y, top_k_idxs = torch.topk(self.train_y, min(self.update_on_n_pts, len(self.train_y)))
+                self.train_x = self.train_x[top_k_idxs]
+                self.train_y = self.train_y.unsqueeze(-1)
+                self.train_y = self.train_y.to(dtype=self.dtype)
+                self.train_x = self.train_x.to(dtype=self.dtype)
+            else:
+                # get random init training data
+                self.train_x, self.train_y = get_random_init_data(
+                    num_initialization_points=num_initialization_points,
+                    objective=self.objective,
+                )
+
 
         if self.verbose:
             print("train x shape:", self.train_x.shape)

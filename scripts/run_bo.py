@@ -2,6 +2,7 @@ import sys
 sys.path.append("../")
 import torch
 import fire 
+import time 
 import pandas as pd
 import warnings
 warnings.filterwarnings('ignore')
@@ -309,6 +310,7 @@ class Optimize(object):
     def run(self):
         ''' Main optimization loop
         '''
+        loop_time = 0.0 
         while self.objective.num_calls < self.max_n_oracle_calls:
             # Update wandb with optimization progress
             best_score_found = self.train_y.max().item()
@@ -319,8 +321,10 @@ class Optimize(object):
             dict_log = {
                 "best_found":best_score_found,
                 "n_oracle_calls":n_calls_,
+                "loop_time":loop_time,
             }
             self.tracker.log(dict_log)
+            start_loop_time = time.time()
             # Normalize train ys
             if self.normalize_ys:
                 self.normed_train_y = (self.train_y - self.train_y_mean) / self.train_y_std
@@ -428,6 +432,7 @@ class Optimize(object):
                         batch_size=self.bsz,
                         best_value=self.train_y.max().item(),
                     )
+            loop_time = time.time() - start_loop_time
         self.tracker.finish()
         return self
 
